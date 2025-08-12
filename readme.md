@@ -15,5 +15,5 @@ Ex: docker run -d -p 8080:3000 nodejsapp:v0.0.1
 ```
 
 CI job details
-* This CI job will clone the repo
+* This CI job will clone the repo,install node dependencies
 

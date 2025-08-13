@@ -1,0 +1,53 @@
+  pipeline {
+     agent {
+        node {
+            label "nodejsapp"
+            customWorkspace '/var/jenkins_home/nodejs-app'
+        }
+     }
+    
+    parameters {
+        string(name: 'IMAGE_TAG',description: 'Docker image tag to deploy')
+        string(name: 'PREVIOUS_TAG', description: 'Tag to rollback to if deployment fails')
+    }
+    
+    
+    stages {
+        stage('Pulling docker image from my registry'){
+            steps {
+                script {
+                    docker.withRegistry("https://index.docker.io/v1/", "Docker_registry") {
+                        ssh "docker pull raghumn/nodejsapp:${IMAGE_TAG}"
+                    }
+                }
+            }
+        }
+        
+        stage('Updating the container') {
+            steps {
+                sh """
+                echo "Deploying Docker image with tag: ${params.IMAGE_TAG}"
+                docker stop nodejsapp || true
+                docker rm nodejsapp || true
+                docker run -d --name nodejsapp -p 8080:3000 raghumn/nodejsapp:${params.IMAGE_TAG}
+                """
+            }
+        }
+    }
+    
+post {
+    failure {
+        script {
+            docker.withRegistry("https://index.docker.io/v1/", "Docker_registry") {
+               sh """
+               echo "Deployment failed. Rolling back to: ${params.PREVIOUS_TAG}"
+               docker pull raghumn/nodejsapp:${params.PREVIOUS_TAG}
+               docker stop nodejsapp || true
+               docker rm nodejsapp || true
+               docker run -d --name nodejsapp -p 8080:3000 raghumn/nodejsapp:${params.PREVIOUS_TAG} 
+               """
+            }
+        }
+    }
+  }
+}

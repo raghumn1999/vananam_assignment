@@ -1,0 +1,111 @@
+pipeline {
+    
+   agent {
+        node {
+            label "nodejsapp"
+            customWorkspace '/var/jenkins_home/nodejs-app'
+        }
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout([
+                    $class: 'GitSCM',
+                    branches: [[name: '*/main']],
+                    doGenerateSubmoduleConfigurations: false,
+                    extensions: [],
+                    userRemoteConfigs: [[
+                    url: 'https://github.com/raghumn1999/vananam_assignment.git'
+                   ]]
+                ])
+            }
+        }
+        
+        stage('Install Dependencies') {
+            steps {
+               dir('/var/jenkins_home/nodejs-app/express'){
+                   sh '''
+                   set +x
+                   export NVM_DIR=/var/jenkins_home/.nvm
+                   [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+                   nvm use 24.5.0
+                   npm install
+                   '''
+               }
+            }
+        }
+        
+        stage('Run Lint') {
+            steps {
+                dir('/var/jenkins_home/nodejs-app/express'){
+                   sh '''
+                   set +x
+                   export NVM_DIR=/var/jenkins_home/.nvm
+                   [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+                   nvm use 24.5.0
+                   npm run lint
+                   '''
+               }
+            }
+        }
+        
+        stage('Run Tests') {
+            steps {
+                dir('/var/jenkins_home/nodejs-app/express'){
+                   sh '''
+                   set +x
+                   export NVM_DIR=/var/jenkins_home/.nvm
+                   [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+                   nvm use 24.5.0
+                   npm test
+                   '''
+               }
+            }
+        }
+        
+        stage('Building docker image and pushing image to my registry'){
+            steps {
+                script {
+                    docker.withRegistry("https://index.docker.io/v1/", "Docker_registry") {
+                    def dockerImage = docker.build("raghumn/nodejsapp:${env.BUILD_NUMBER}")
+                    dockerImage.push()
+                    }
+                }
+            }
+        }
+        
+        stage('Getting previous image tag'){
+            steps {
+                script {
+                    def prevBuildNum = currentBuild.previousBuild?.number
+                    env.PREVBUILDNUM = prevBuildNum
+                    echo "Previous build number for rollback if deployment fails: ${prevBuildNum}"
+                }
+            }    
+        }
+    }
+    
+post {
+       success {
+            echo "CI passed. Triggering CD job..."
+            build job: 'CD_nodejs_app', 
+            parameters: [
+                      string(name: 'IMAGE_TAG', value: "${env.BUILD_NUMBER}"),
+                      string(name: 'PREVIOUS_TAG', value: "${env.PREVBUILDNUM}")
+                  ],
+            wait: false
+        }
+        failure {
+            echo "CI failed. CD will not be triggered."
+        }
+        always {
+            script {
+                ssh """
+                rm -fr /var/jenkins_home/nodejs-app
+                docker rmi raghumn/nodejsapp:${env.BUILD_NUMBER}
+                """
+            }
+        }
+    }
+}

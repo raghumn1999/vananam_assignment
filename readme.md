@@ -41,3 +41,14 @@ If CI job got success,CI job will trigger CD job to update container.
 
 I have placed output of web-hooks configuration,CI and CD output,images pushed to my registry
 
+![webhooksconfiguarion](./images/webhooksconfiguarion.png)
+
+![webhooksvalidation.png](./images/webhooksvalidation.png)
+
+![ngrok.png](./images/ngrok.png)
+
+![images_in_registry](./images/images_in_registry.png)
+
+![container](./images/container.png)
+
+![app_output](./images/app_output.png)
